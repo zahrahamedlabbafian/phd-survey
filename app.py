@@ -133,98 +133,190 @@ def load_responses():
 # ==========================================
 
 with st.form("survey_form"):
-    st.header("بخش اول: اطلاعات دموگرافیک")
+    st.header("بخش اول: اطلاعات فردی")
     
     col1, col2 = st.columns(2)
+
     with col1:
         fullname = st.text_input(
-            "نام و نام خانوادگی *", 
+            "نام و نام خانوادگی *",
             placeholder="مثال: علی محمدی"
         )
         email = st.text_input(
-            "ایمیل", 
+            "ایمیل",
             placeholder="example@email.com"
         )
-    
+        work = st.selectbox( 
+            "وضعیت شغلی",
+            options=["انتخاب کنید...", "شاغل", "بدون شغل"]
+        )
+        address = st.text_input(
+            "محل کار:",
+            placeholder="مثال: دانشگاه فردوسی مشهد"
+        )   
+
     with col2:
+        gender = st.selectbox(
+            "جنسیت",
+            options=["انتخاب کنید...", "مرد", "زن"]
+        )
         status = st.selectbox(
             "وضعیت تحصیلی *",
-            options=["انتخاب کنید...", "دانشجوی دکتری", "دانش‌آموخته دکتری", "پسادکتری", "هیئت علمی"]
+            options=["انتخاب کنید...", "دانشجوی دکتری", "دانش‌آموخته دکتری"]
         )
         university = st.text_input(
-            "دانشگاه/مرکز علمی", 
+            "دانشگاه/مرکز علمی",
             placeholder="مثال: دانشگاه فردوسی مشهد"
         )
     
-    st.header("بخش دوم: ارزیابی دروس تخصصی")
-    st.caption("لطفاً میزان اهمیت هر یک از دروس زیر را در دوره دکتری مشخص کنید.")
-    
-    # لیست دروس (قابل ویرایش)
-    courses = [
-        "نظریه گراف پیشرفته",
-        "ترکیبیات پیشرفته",
-        "الگوریتم‌های گراف",
-        "کاربردهای گراف در شبکه",
-        "رنگ‌آمیزی گراف",
-        "گراف‌های تصادفی",
-        "بهینه‌سازی ترکیبیاتی",
-        "نظریه رمز و گراف"
+    # ========== انگیزه ==========
+    st.subheader("انگیزه شما از انتخاب حوزه «نظریه گراف» در مقطع تحصیلات تکمیلی")
+    st.caption("می‌توانید بیش از یک گزینه انتخاب کنید")
+
+    motivation_options = [
+        "علاقه شخصی به ریاضیات و نظریه گراف",
+        "اهمیت علمی و کاربردی نظریه گراف در سایر علوم",
+        "توصیه اساتید، پژوهشگران یا افراد دیگر",
+        "بازار کار خوب",
+        "شهرت و اعتبار حرفه‌ای",
+        "جذابیت مسائل و ساختارهای ریاضی در گراف‌ها",
+        "سهولت قبولی در این رشته",
+        "ارتقای شغل فعلی"
     ]
-    
-    # ماتریس مقیاس لیکرت برای دروس
-    course_ratings = {}
-    for course in courses:
-        course_ratings[course] = st.select_slider(
-            f"اهمیت درس **{course}**",
-            options=["خیلی کم", "کم", "متوسط", "زیاد", "خیلی زیاد"],
-            value="متوسط",
-            key=f"course_{course}"
-        )
-    
-    st.header("بخش سوم: مهارت‌ها و توانمندی‌ها")
-    st.caption("میزان تسلط خود را در موارد زیر ارزیابی کنید.")
-    
-    skills = [
-        "تسلط بر مبانی نظریه گراف",
-        "توانایی اثبات قضایا",
-        "برنامه‌نویسی الگوریتم‌های گراف",
-        "کار با نرم‌افزارهای تخصصی (مثل SageMath, NetworkX)",
-        "مطالعه مقالات تخصصی به زبان انگلیسی",
-        "نگارش مقالات علمی"
-    ]
-    
-    # ماتریس مقیاس لیکرت برای مهارت‌ها
-    skill_ratings = {}
-    for skill in skills:
-        skill_ratings[skill] = st.select_slider(
-            f"**{skill}**",
-            options=["ضعیف", "متوسط", "خوب", "عالی"],
-            value="متوسط",
-            key=f"skill_{skill}"
-        )
-    
-    st.header("بخش چهارم: پیشنهادات و نظرات تکمیلی")
-    
-    suggestions = st.text_area(
-        "پیشنهادات شما برای بهبود برنامه درسی دوره دکتری گراف و ترکیبیات",
-        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
-        height=150
+
+    motivations = st.multiselect(
+        "گزینه‌های مورد نظر را انتخاب کنید:",
+        options=motivation_options,
+        placeholder="یک یا چند گزینه را انتخاب کنید..."
     )
     
-    research_interests = st.text_area(
-        "حوزه‌های پژوهشی مورد علاقه شما",
-        placeholder="مثال: نظریه گراف طیفی، گراف‌های کیلی، کاربردهای ترکیبیات...",
+    # ========== مهارت‌ها ==========
+    st.header("بخش دوم: ارزیابی مهارت‌های آموخته شده در دانشگاه")
+    st.caption("تا چه حد مهارت‌های زیر را در دانشگاه فرا می‌گیرید؟ (از 1 تا 5 نمره دهید)")
+
+    skills = [
+        "توانایی کارگروهی",
+        "مهارت‌های تخصصی شامل برنامه‌نویسی و کار با نرم‌افزار",
+        "استفاده از مسائل گراف در مسائل روزمره",
+        "قدرت تجزیه و تحلیل"
+    ]
+
+    skill_scores = {}
+    for skill in skills:
+        skill_scores[skill] = st.select_slider(
+            f"**{skill}**",
+            options=[1, 2, 3, 4, 5],
+            value=3,
+            key=f"skill_score_{skill}"
+        )
+    
+    # ========== ارزیابی دروس (ماتریس) ==========
+    st.header("بخش سوم: ارزیابی تأثیر دروس گذرانده شده")
+    st.caption("لطفاً تأثیر هر یک از دروس را در موارد خواسته شده با عددی بین 1 تا 5 امتیاز دهید.")
+
+    # لیست دروس (ردیف‌ها)
+    courses = [
+        "مباحثی در نظریه گراف",
+        "نظریه جبری گراف",
+        "نظریه طیفی گراف",
+        "ترکیبیات پیشرفته",
+        "بهینه‌سازی ترکیباتی",
+        "الگوریتم‌های گرافی",
+        "گراف‌های تصادفی",
+        "نظریه رمزنگاری",
+        "طرح‌های بلوکی",
+        "ماترویدها",
+        "تاپولوژی ترکیباتی",
+        "نظریه کدگذاری",
+        "پایگاه داده‌های گرافی",
+        "یادگیری ماشین گرافی",
+        "رنگ‌آمیزی گراف پیشرفته"
+    ]
+
+    # لیست ستون‌ها (معیارهای ارزیابی)
+    criteria = [
+        "تناسب درس با اهداف رشته",
+        "تناسب سرفصل‌ها با درس",
+        "تناسب شیوه تدریس با سرفصل‌ها",
+        "توانمندی استاد در ارائه درس",
+        "بروز بودن محتوا و جدید بودن درس",
+        "مناسب بودن تعداد واحدهای آموزشی درس",
+        "مناسب بودن حجم مطالب درس",
+        "میزان علاقه‌مندی به درس",
+        "ضرورت حل تمرین یا آزمایشگاه برای این درس",
+        "نقش درس در افزایش توانمندی علمی شما"
+    ]
+
+    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه ۳)
+    data = {}
+    data["درس"] = courses
+    for criterion in criteria:
+        data[criterion] = [3] * len(courses)
+
+    df_courses = pd.DataFrame(data)
+
+    # نمایش جدول قابل ویرایش
+    edited_df = st.data_editor(
+        df_courses,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "درس": st.column_config.TextColumn("دروس", disabled=True, width="medium"),
+            **{
+                criterion: st.column_config.NumberColumn(
+                    criterion,
+                    min_value=1,
+                    max_value=5,
+                    step=1,
+                    width="small"
+                )
+                for criterion in criteria
+            }
+        },
+        num_rows="fixed"
+    )
+
+    # ========== سوالات باز ==========
+    st.header("بخش چهارم: سوالات باز")
+    
+    suggestion_1 = st.text_area(
+        "به نظر شما کدام دروس باید در برنامه دکتری گراف به صورت اجباری ارائه شوند؟",
+        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
         height=100
     )
     
-    st.divider()
-    st.caption("⚠️ فیلدهای دارای * الزامی هستند.")
+    suggestion_2 = st.text_area(
+        "اگر پیشنهادی برای تغییر منابع، سرفصل‌ها و پیش‌نیازی-هم‌نیازی دارید (به دلایلی همچون عدم تناسب سرفصل‌ها، قدیمی بودن منبع در صورت موجود بودن منبع جدیدتر و برتر و...) ذکر نمایید. (با ذکر نام کتاب)",
+        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
+        height=100
+    )
     
-    # دکمه ثبت
+    suggestion_3 = st.text_area(
+        "لطفاً پیشنهادات خود را برای ارائه‌ی دوره‌ها، کارگاه‌ها، سمینارها و همایش‌ها جهت تقویت دانش و مهارت‌های تخصصی در حوزه‌های مرتبط با نظریه گراف و ریاضیات گسسته بیان نمایید:",
+        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
+        height=100
+    )
+    
+    suggestion_4 = st.text_area(
+        "به نظر شما یک دانش‌آموخته در حوزه‌های مرتبط با نظریه گراف در مقطع دکتری باید دارای چه دانش‌ها و مهارت‌های علمی، پژوهشی و تحلیلی باشد؟",
+        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
+        height=100
+    )
+
+    suggestion_5 = st.text_area(
+        "اگر در سوال قبل، دانش و مهارت‌های یاد شده با دروسی که در این مقطع ارائه می‌شود قابل دستیابی نیست، لطفا پیشنهاد خود را برای دروس یا مهارت‌های لازم، ارائه دهید.",
+        placeholder="لطفاً نظرات و پیشنهادات خود را در اینجا بنویسید...",
+        height=100
+    )
+
+    st.divider()
+    st.caption("🙏 با تشکر فراوان از زمان و توجه شما")
+    
+    # ========== دکمه ثبت ==========
     submitted = st.form_submit_button("✅ ثبت پاسخ‌ها", use_container_width=True)
     
     if submitted:
-        # اعتبارسنجی
+        # ========== اعتبارسنجی ==========
         errors = []
         if not fullname:
             errors.append("نام و نام خانوادگی")
@@ -234,33 +326,43 @@ with st.form("survey_form"):
         if errors:
             st.error(f"⚠️ لطفاً فیلدهای زیر را تکمیل کنید: {', '.join(errors)}")
         else:
-            # ساخت دیکشنری پاسخ
+            # ========== ساخت دیکشنری پاسخ ==========
             response_data = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "fullname": fullname,
                 "email": email,
+                "gender": gender if gender != "انتخاب کنید..." else "",
+                "work": work if work != "انتخاب کنید..." else "",
+                "address": address,
                 "status": status,
                 "university": university,
-                "suggestions": suggestions,
-                "research_interests": research_interests,
+                "motivations": ", ".join(motivations) if motivations else "",
             }
             
-            # اضافه کردن پاسخ‌های دروس
-            for course, rating in course_ratings.items():
-                response_data[f"course_{course}"] = rating
+            # اضافه کردن نمرات مهارت‌ها
+            for skill, score in skill_scores.items():
+                response_data[f"skill_{skill}"] = score
             
-            # اضافه کردن پاسخ‌های مهارت‌ها
-            for skill, rating in skill_ratings.items():
-                response_data[f"skill_{skill}"] = rating
+            # اضافه کردن امتیازات دروس (ماتریس)
+            for idx, row in edited_df.iterrows():
+                course_name = row["درس"]
+                for criterion in criteria:
+                    key = f"course_{course_name}_{criterion}"
+                    response_data[key] = row[criterion]
             
-            # ذخیره (با بررسی نتیجه)
+            # اضافه کردن سوالات باز
+            response_data["suggestion_1"] = suggestion_1
+            response_data["suggestion_2"] = suggestion_2
+            response_data["suggestion_3"] = suggestion_3
+            response_data["suggestion_4"] = suggestion_4
+            response_data["suggestion_5"] = suggestion_5
+            
+            # ========== ذخیره ==========
             success = save_response(response_data)
             
             if success:
                 st.success("✅ پاسخ‌های شما با موفقیت ثبت شد. سپاسگزاریم!")
                 st.balloons()
-                
-                # پاک کردن فرم با استفاده از session state
                 st.session_state.form_submitted = True
             else:
                 st.error("❌ متأسفانه خطایی در ثبت پاسخ رخ داد. لطفاً دوباره تلاش کنید.")
@@ -328,12 +430,16 @@ if password == "admin123":  # این رمز را تغییر دهید
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
         
-        # نمایش چند نمونه از نظرات (در صورت وجود)
-        if 'suggestions' in df.columns:
+        # نمایش نظرات (در صورت وجود)
+        suggestion_cols = [col for col in df.columns if col.startswith('suggestion_')]
+        if suggestion_cols:
             with st.expander("💬 مشاهده نظرات و پیشنهادات"):
-                for i, (idx, row) in enumerate(df.iterrows()):
-                    if row['suggestions'] and len(str(row['suggestions']).strip()) > 0:
-                        st.write(f"**{i+1}.** {row['fullname']}: {row['suggestions']}")
+                for idx, row in df.iterrows():
+                    st.write(f"**{idx+1}. {row['fullname']}**")
+                    for col in suggestion_cols:
+                        if row[col] and len(str(row[col]).strip()) > 0:
+                            st.write(f"- {col.replace('suggestion_', 'سوال ')}: {row[col]}")
+                    st.divider()
         
     else:
         st.info("📭 هنوز هیچ پاسخی ثبت نشده است.")
