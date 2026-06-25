@@ -86,15 +86,18 @@ def save_response(data):
         if mask.any():
             # به‌روزرسانی ردیف موجود
             for key, value in data.items():
-                if key in df.columns:
-                    df.loc[mask, key] = value
-                else:
-                    # اگر ستون جدید است، آن را اضافه کن
+                # اگر ستون وجود ندارد، آن را ایجاد کن
+                if key not in df.columns:
                     df[key] = None
+                
+                # مقداردهی با مدیریت نوع داده
+                try:
                     df.loc[mask, key] = value
+                except (TypeError, ValueError):
+                    df.loc[mask, key] = str(value)
             
-            st.info(f"🔄 پاسخ شما با موفقیت به‌روزرسانی شد! (ایمیل: {user_email})")
             df.to_csv(file_path, index=False, encoding='utf-8-sig')
+            st.info(f"🔄 پاسخ شما با موفقیت به‌روزرسانی شد! (ایمیل: {user_email})")
             return True
     
     # 5. اگر ایمیل جدید است، ردیف جدید اضافه کن
