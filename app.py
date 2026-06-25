@@ -385,7 +385,7 @@ st.subheader("📊 مشاهده نتایج (دسترسی مدیر)")
 # احراز هویت ساده
 password = st.text_input("رمز عبور برای مشاهده نتایج:", type="password")
 
-if password == "admin123":  # این رمز را تغییر دهید
+if password == "zahrahamed1373":  # این رمز را تغییر دهید
     st.success("✅ دسترسی تایید شد!")
     
     # بارگذاری داده‌ها
