@@ -375,8 +375,9 @@ with st.form("survey_form"):
             else:
                 st.error("❌ متأسفانه خطایی در ثبت پاسخ رخ داد. لطفاً دوباره تلاش کنید.")
 
+
 # ==========================================
-# نمایش نتایج (دسترسی مدیر)
+# نمایش نتایج (دسترسی مدیر) - نسخه کامل با تمام تحلیل‌ها
 # ==========================================
 
 st.divider()
@@ -385,31 +386,341 @@ st.subheader("📊 مشاهده نتایج (دسترسی مدیر)")
 # احراز هویت ساده
 password = st.text_input("رمز عبور برای مشاهده نتایج:", type="password")
 
-if password == "zahrahamed1373":  # این رمز را تغییر دهید
+if password == "admin123":
     st.success("✅ دسترسی تایید شد!")
     
     # بارگذاری داده‌ها
     df = load_responses()
     
     if not df.empty:
-        # آمار کلی
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("تعداد کل پاسخ‌ها", len(df))
-        with col2:
-            if 'status' in df.columns:
-                students = len(df[df['status'] == 'دانشجوی دکتری'])
-                st.metric("تعداد دانشجویان", students)
-            else:
-                st.metric("تعداد دانشجویان", 0)
-        with col3:
-            if 'status' in df.columns:
-                graduates = len(df[df['status'] == 'دانش‌آموخته دکتری'])
-                st.metric("تعداد دانش‌آموختگان", graduates)
-            else:
-                st.metric("تعداد دانش‌آموختگان", 0)
+        # ============================================================
+        # 1. مشخصات فردی پاسخ‌دهندگان
+        # ============================================================
+        st.header("👤 مشخصات فردی پاسخ‌دهندگان")
+        st.caption("با توجه به کم بودن تعداد نظرات ثبت شده، در تمامی نمودارها از فراوانی بجای درصد فراوانی استفاده گردید.")
         
-        # نمایش جدول
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # جنسیت
+            st.subheader("جنسیت")
+            if 'gender' in df.columns:
+                gender_counts = df['gender'].value_counts()
+                if not gender_counts.empty:
+                    fig_gender = px.bar(
+                        x=gender_counts.index,
+                        y=gender_counts.values,
+                        title="توزیع جنسیت پاسخ‌دهندگان",
+                        text=gender_counts.values,
+                        color=gender_counts.index,
+                        labels={'x': 'جنسیت', 'y': 'تعداد'}
+                    )
+                    fig_gender.update_traces(textposition='outside')
+                    st.plotly_chart(fig_gender, use_container_width=True)
+                    
+                    # نمایش جدول
+                    gender_df = pd.DataFrame({
+                        'جنسیت': gender_counts.index,
+                        'فراوانی': gender_counts.values,
+                        'درصد': (gender_counts.values / len(df) * 100).round(1)
+                    })
+                    st.dataframe(gender_df, use_container_width=True, hide_index=True)
+        
+        with col2:
+            # سال ورود (اگر موجود باشد)
+            st.subheader("سال ورود")
+            if 'entry_year' in df.columns:
+                year_counts = df['entry_year'].value_counts().sort_index()
+                if not year_counts.empty:
+                    fig_year = px.bar(
+                        x=year_counts.index,
+                        y=year_counts.values,
+                        title="توزیع سال ورود پاسخ‌دهندگان",
+                        text=year_counts.values,
+                        color=year_counts.index,
+                        labels={'x': 'سال ورود', 'y': 'تعداد'}
+                    )
+                    fig_year.update_traces(textposition='outside')
+                    st.plotly_chart(fig_year, use_container_width=True)
+        
+        with col3:
+            # وضعیت شغلی
+            st.subheader("وضعیت شغلی")
+            if 'work' in df.columns:
+                work_counts = df['work'].value_counts()
+                if not work_counts.empty:
+                    fig_work = px.bar(
+                        x=work_counts.index,
+                        y=work_counts.values,
+                        title="توزیع وضعیت شغلی",
+                        text=work_counts.values,
+                        color=work_counts.index,
+                        labels={'x': 'وضعیت شغلی', 'y': 'تعداد'}
+                    )
+                    fig_work.update_traces(textposition='outside')
+                    st.plotly_chart(fig_work, use_container_width=True)
+        
+        st.divider()
+        
+        # ============================================================
+        # 2. انگیزه انتخاب رشته
+        # ============================================================
+        st.header("🎯 انگیزه انتخاب رشته")
+        
+        if 'motivations' in df.columns:
+            # استخراج و شمارش انگیزه‌ها
+            all_motivations = []
+            for item in df['motivations'].dropna():
+                if item:
+                    all_motivations.extend([m.strip() for m in item.split(',')])
+            
+            if all_motivations:
+                from collections import Counter
+                mot_counts = Counter(all_motivations)
+                mot_df = pd.DataFrame({
+                    'انگیزه': list(mot_counts.keys()),
+                    'فراوانی': list(mot_counts.values())
+                }).sort_values('فراوانی', ascending=False)
+                
+                # محاسبه درصد
+                total = mot_df['فراوانی'].sum()
+                mot_df['درصد'] = (mot_df['فراوانی'] / total * 100).round(1)
+                
+                # نمودار
+                fig_mot = px.bar(
+                    mot_df,
+                    x='انگیزه',
+                    y='فراوانی',
+                    title="انگیزه از انتخاب رشته نظریه گراف",
+                    text='فراوانی',
+                    color='انگیزه',
+                    labels={'انگیزه': 'انگیزه', 'فراوانی': 'تعداد انتخاب‌ها'}
+                )
+                fig_mot.update_traces(textposition='outside')
+                fig_mot.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_mot, use_container_width=True)
+                
+                # نمایش جدول
+                st.dataframe(mot_df, use_container_width=True, hide_index=True)
+                
+                # نمایش پرتکرارترین
+                top_mot = mot_df.iloc[0]
+                st.info(f"📌 **پرتکرارترین انگیزه:** {top_mot['انگیزه']} با {top_mot['فراوانی']} نظر (معادل {top_mot['درصد']}% از کل نظرات)")
+        
+        st.divider()
+        
+        # ============================================================
+        # 3. بررسی مهارت‌های فراگرفته شده
+        # ============================================================
+        st.header("💪 بررسی مهارت‌های فراگرفته شده در دانشگاه")
+        
+        # پیدا کردن ستون‌های مهارت‌ها
+        skill_cols = [col for col in df.columns if col.startswith('skill_')]
+        if skill_cols:
+            # جدول درصد فراوانی
+            st.subheader("توزیع درصد فراوانی گزینه‌های انتخاب شده به تفکیک مهارت")
+            
+            skill_labels = {
+                'توانایی کارگروهی': 'توانایی کارگروهی',
+                'مهارت‌های تخصصی شامل برنامه‌نویسی و کار با نرم‌افزار': 'مهارت‌های تخصصی',
+                'استفاده از مسائل گراف در مسائل روزمره': 'کاربرد مسائل گراف',
+                'قدرت تجزیه و تحلیل': 'قدرت تجزیه و تحلیل'
+            }
+            
+            # ایجاد جدول فراوانی
+            freq_data = {}
+            for col in skill_cols:
+                skill_name = col.replace('skill_', '')
+                if skill_name in df.columns:
+                    freq = df[skill_name].value_counts().sort_index()
+                    freq_data[skill_labels.get(skill_name, skill_name)] = freq
+            
+            if freq_data:
+                freq_df = pd.DataFrame(freq_data).fillna(0)
+                # تبدیل به درصد
+                freq_df_pct = freq_df.div(freq_df.sum()) * 100
+                
+                st.dataframe(freq_df_pct.round(2), use_container_width=True)
+                
+                # نمودار میانگین مهارت‌ها
+                st.subheader("میانگین امتیاز مهارت‌ها (از ۱ تا ۵)")
+                skill_means = {}
+                for col in skill_cols:
+                    skill_name = col.replace('skill_', '')
+                    if skill_name in df.columns:
+                        skill_means[skill_labels.get(skill_name, skill_name)] = df[skill_name].mean()
+                
+                if skill_means:
+                    skill_mean_df = pd.DataFrame({
+                        'مهارت': list(skill_means.keys()),
+                        'میانگین': list(skill_means.values())
+                    }).sort_values('میانگین', ascending=False)
+                    
+                    fig_skills = px.bar(
+                        skill_mean_df,
+                        x='مهارت',
+                        y='میانگین',
+                        title="میانگین امتیاز مهارت‌های فراگرفته شده",
+                        text='میانگین',
+                        color='مهارت',
+                        range_y=[1, 5],
+                        labels={'مهارت': 'مهارت', 'میانگین': 'میانگین امتیاز'}
+                    )
+                    fig_skills.update_traces(textposition='outside')
+                    fig_skills.update_layout(xaxis_tickangle=-45)
+                    st.plotly_chart(fig_skills, use_container_width=True)
+        
+        st.divider()
+        
+        # ============================================================
+        # 4. دیدگاه پاسخ‌دهندگان درباره دروس (ماتریس کامل)
+        # ============================================================
+        st.header("📚 دیدگاه پاسخ‌دهندگان درباره دروس")
+        st.caption("امتیازدهی به معیارهای مختلف برای هر درس (از ۱ تا ۵)")
+        
+        # پیدا کردن ستون‌های دروس
+        course_cols = [col for col in df.columns if col.startswith('course_')]
+        if course_cols:
+            # استخراج نام دروس و معیارها
+            courses_list = []
+            criteria_list = []
+            
+            for col in course_cols:
+                if '_' in col:
+                    parts = col.split('_', 1)
+                    if len(parts) == 2:
+                        course_name = parts[1]
+                        # پیدا کردن معیار
+                        for criterion in criteria:
+                            if criterion in parts[0]:
+                                courses_list.append(course_name)
+                                criteria_list.append(criterion)
+                                break
+            
+            # ایجاد دیتافریم برای ماتریس
+            if courses_list and criteria_list:
+                # محاسبه میانگین برای هر درس و هر معیار
+                matrix_data = {}
+                for course in set(courses_list):
+                    matrix_data[course] = {}
+                    for criterion in set(criteria_list):
+                        col_name = f"course_{criterion}_{course}"
+                        if col_name in df.columns:
+                            matrix_data[course][criterion] = df[col_name].mean()
+                        else:
+                            matrix_data[course][criterion] = None
+                
+                if matrix_data:
+                    matrix_df = pd.DataFrame(matrix_data).T
+                    
+                    # نمایش ماتریس گرمایی (Heatmap)
+                    st.subheader("🔥 ماتریس گرمای امتیازات دروس بر اساس معیارها")
+                    fig_heatmap = px.imshow(
+                        matrix_df,
+                        title="میانگین امتیازات هر درس بر اساس معیارها",
+                        labels=dict(x="معیارها", y="دروس", color="میانگین امتیاز"),
+                        color_continuous_scale="Viridis",
+                        aspect="auto",
+                        text_auto=True
+                    )
+                    fig_heatmap.update_layout(height=600)
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+                    
+                    # نمایش جدول کامل
+                    with st.expander("📋 مشاهده جدول کامل امتیازات دروس"):
+                        st.dataframe(matrix_df.round(2), use_container_width=True)
+        
+        st.divider()
+        
+        # ============================================================
+        # 5. جمع‌بندی و میانگین معیارها
+        # ============================================================
+        st.header("📊 جمع‌بندی میانگین معیارها")
+        
+        if course_cols:
+            # محاسبه میانگین هر معیار برای همه دروس
+            criterion_means = {}
+            for criterion in criteria:
+                cols = [col for col in course_cols if criterion in col]
+                if cols:
+                    all_values = []
+                    for col in cols:
+                        if col in df.columns:
+                            all_values.extend(df[col].dropna().tolist())
+                    if all_values:
+                        criterion_means[criterion] = sum(all_values) / len(all_values)
+            
+            if criterion_means:
+                criteria_df = pd.DataFrame({
+                    'معیار': list(criterion_means.keys()),
+                    'میانگین': list(criterion_means.values())
+                }).sort_values('میانگین', ascending=False)
+                
+                # نمودار میله‌ای
+                fig_criteria = px.bar(
+                    criteria_df,
+                    x='معیار',
+                    y='میانگین',
+                    title="میانگین امتیاز معیارهای ارزیابی دروس",
+                    text='میانگین',
+                    color='معیار',
+                    range_y=[1, 5],
+                    labels={'معیار': 'معیارها', 'میانگین': 'میانگین امتیاز'}
+                )
+                fig_criteria.update_traces(textposition='outside')
+                fig_criteria.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_criteria, use_container_width=True)
+                
+                # نمایش جدول
+                st.dataframe(criteria_df.round(3), use_container_width=True, hide_index=True)
+        
+        st.divider()
+        
+        # ============================================================
+        # 6. سوالات باز
+        # ============================================================
+        st.header("💬 نظرات و پیشنهادات")
+        
+        suggestion_cols = [col for col in df.columns if col.startswith('suggestion_')]
+        if suggestion_cols:
+            # تعداد کل نظرات
+            total_suggestions = 0
+            for col in suggestion_cols:
+                count = df[col].dropna().apply(lambda x: len(str(x).strip()) > 0).sum()
+                total_suggestions += count
+            
+            st.metric("تعداد کل نظرات ثبت شده", total_suggestions)
+            
+            # نمایش نظرات در تب‌ها
+            tab_names = [
+                "دروس اجباری",
+                "تغییر منابع",
+                "دوره‌ها و کارگاه‌ها",
+                "مهارت‌های دانش‌آموخته",
+                "پیشنهادات تکمیلی"
+            ]
+            
+            tabs = st.tabs(tab_names)
+            
+            for i, col in enumerate(suggestion_cols):
+                with tabs[i] if i < len(tabs) else tabs[-1]:
+                    suggestions_list = df[col].dropna().tolist()
+                    suggestions_list = [s for s in suggestions_list if str(s).strip()]
+                    
+                    if suggestions_list:
+                        # نمایش آمار
+                        st.caption(f"تعداد نظرات: {len(suggestions_list)}")
+                        
+                        for j, text in enumerate(suggestions_list):
+                            st.write(f"**{j+1}.** {text}")
+                    else:
+                        st.info("هیچ نظری در این بخش ثبت نشده است.")
+        
+        st.divider()
+        
+        # ============================================================
+        # 7. جدول کامل پاسخ‌ها
+        # ============================================================
         st.subheader("📋 لیست کامل پاسخ‌ها")
         st.dataframe(df, use_container_width=True, hide_index=True)
         
@@ -423,32 +734,6 @@ if password == "zahrahamed1373":  # این رمز را تغییر دهید
             use_container_width=True
         )
         
-        # نمودارهای تحلیلی
-        if 'status' in df.columns:
-            st.subheader("📊 تحلیل سریع")
-            
-            # نمودار توزیع وضعیت تحصیلی
-            status_counts = df['status'].value_counts()
-            fig = px.pie(
-                values=status_counts.values,
-                names=status_counts.index,
-                title="توزیع وضعیت تحصیلی پاسخ‌دهندگان",
-                hole=0.3
-            )
-            fig.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # نمایش نظرات (در صورت وجود)
-        suggestion_cols = [col for col in df.columns if col.startswith('suggestion_')]
-        if suggestion_cols:
-            with st.expander("💬 مشاهده نظرات و پیشنهادات"):
-                for idx, row in df.iterrows():
-                    st.write(f"**{idx+1}. {row['fullname']}**")
-                    for col in suggestion_cols:
-                        if row[col] and len(str(row[col]).strip()) > 0:
-                            st.write(f"- {col.replace('suggestion_', 'سوال ')}: {row[col]}")
-                    st.divider()
-        
     else:
         st.info("📭 هنوز هیچ پاسخی ثبت نشده است.")
 else:
@@ -456,9 +741,3 @@ else:
         st.error("❌ رمز عبور اشتباه است!")
     else:
         st.info("🔑 برای مشاهده نتایج، رمز عبور را وارد کنید.")
-
-# ==========================================
-# پاورقی
-# ==========================================
-st.divider()
-st.caption("📌 این پرسشنامه توسط آزمایشگاه نظریه گراف و کاربردهای آن، دانشگاه فردوسی مشهد تهیه شده است.")
