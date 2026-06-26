@@ -270,11 +270,11 @@ with st.form("survey_form"):
     "نقش درس در افزایش توانمندی شغلی"
     ]
 
-    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه ۳)
+    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه 1)
     data = {}
     data["درس"] = courses
     for criterion in criteria:
-        data[criterion] = [3] * len(courses)
+        data[criterion] = [1] * len(courses)
 
     df_courses = pd.DataFrame(data)
 
