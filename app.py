@@ -4,7 +4,9 @@ from datetime import datetime
 import plotly.express as px
 import os
 
-# لیست معیارهای ارزیابی دروس
+# ==========================================
+# لیست معیارهای ارزیابی دروس (سراسری)
+# ==========================================
 criteria = [
     "تناسب درس با اهداف رشته",
     "تناسب سرفصل‌ها با درس",
@@ -18,6 +20,7 @@ criteria = [
     "نقش درس در افزایش توانمندی علمی",
     "نقش درس در افزایش توانمندی شغلی"
 ]
+
 # ==========================================
 # تنظیمات صفحه
 # ==========================================
@@ -48,17 +51,12 @@ st.divider()
 
 def save_response(data):
     """
-    ذخیره پاسخ در فایل CSV با مدیریت کامل خطاها
-    
-    Args:
-        data (dict): دیکشنری شامل پاسخ‌های کاربر
-    
-    Returns:
-        bool: True اگر ذخیره موفق بود، False اگر خطا رخ داد
+    ذخیره یا به‌روزرسانی پاسخ در فایل CSV
+    اگر ایمیل قبلاً ثبت شده باشد، پاسخ قبلی به‌روزرسانی می‌شود
     """
     file_path = "data/responses.csv"
     
-    # 1. ایجاد پوشه data اگر وجود ندارد
+    # 1. ایجاد پوشه data
     try:
         os.makedirs("data", exist_ok=True)
     except Exception as e:
@@ -66,54 +64,76 @@ def save_response(data):
         return False
     
     # 2. بارگذاری داده‌های موجود
-    df = pd.DataFrame()  # دیتافریم خالی پیش‌فرض
+    df = pd.DataFrame()
     
-    if os.path.exists(file_path):
+    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         try:
-            # بررسی خالی بودن فایل
-            if os.path.getsize(file_path) > 0:
-                df = pd.read_csv(file_path, encoding='utf-8-sig')
-            else:
-                # فایل خالی است
-                st.warning("⚠️ فایل CSV خالی بود، یک فایل جدید ساخته می‌شود.")
-        except pd.errors.EmptyDataError:
-            st.warning("⚠️ فایل CSV خالی یا خراب است، بازسازی می‌شود.")
-        except Exception as e:
-            st.error(f"❌ خطا در خواندن فایل: {e}")
-            # پشتیبان‌گیری از فایل خراب
-            if os.path.exists(file_path):
-                backup_path = f"data/responses_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                try:
-                    os.rename(file_path, backup_path)
-                    st.info(f"📁 از فایل قبلی پشتیبان گرفته شد: {backup_path}")
-                except:
-                    pass
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+        except:
             df = pd.DataFrame()
     
-    # 3. ایجاد دیتافریم جدید برای پاسخ
-    try:
-        new_df = pd.DataFrame([data])
-    except Exception as e:
-        st.error(f"❌ خطا در ایجاد داده جدید: {e}")
+    # 3. بررسی وجود ایمیل در داده‌های قبلی
+    user_email = data.get("email", "").strip()
+    
+    if not user_email:
+        st.error("❌ لطفاً ایمیل خود را وارد کنید!")
         return False
     
-    # 4. ترکیب با داده‌های قبلی
-    try:
-        if df.empty:
-            df = new_df
-        else:
-            # اطمینان از هم‌شکل بودن ستون‌ها
-            for col in new_df.columns:
-                if col not in df.columns:
-                    df[col] = None  # اضافه کردن ستون جدید با مقدار خالی
-            df = pd.concat([df, new_df], ignore_index=True)
-    except Exception as e:
-        st.error(f"❌ خطا در ترکیب داده‌ها: {e}")
-        return False
+    # 4. اگر ایمیل وجود دارد، پاسخ قبلی را به‌روزرسانی کن
+    if not df.empty and "email" in df.columns:
+        # پیدا کردن ردیف با ایمیل مشابه
+        mask = df["email"].str.strip() == user_email
+        if mask.any():
+            # به‌روزرسانی ردیف موجود
+            for key, value in data.items():
+                # اگر ستون وجود ندارد، آن را ایجاد کن
+                if key not in df.columns:
+                    # تشخیص نوع مناسب برای ستون جدید
+                    if key.startswith(('skill_', 'course_')):
+                        df[key] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
+                    else:
+                        df[key] = ""  # مقدار پیش‌فرض رشته‌ای
+                
+                # مقداردهی با مدیریت نوع داده
+                try:
+                    # اگر ستون عددی است و مقدار رشته است، تبدیل کن
+                    if pd.api.types.is_numeric_dtype(df[key]):
+                        try:
+                            df.loc[mask, key] = float(value) if value != "" else 1
+                        except (ValueError, TypeError):
+                            df.loc[mask, key] = 1
+                    else:
+                        df.loc[mask, key] = str(value) if value is not None else ""
+                except (TypeError, ValueError):
+                    df.loc[mask, key] = 1 if pd.api.types.is_numeric_dtype(df[key]) else ""
+            
+            df.to_csv(file_path, index=False, encoding='utf-8-sig')
+            st.info(f"🔄 پاسخ شما با موفقیت به‌روزرسانی شد! (ایمیل: {user_email})")
+            return True
     
-    # 5. ذخیره در فایل
+    # 5. اگر ایمیل جدید است، ردیف جدید اضافه کن
+    new_df = pd.DataFrame([data])
+    
+    if df.empty:
+        df = new_df
+    else:
+        # اطمینان از هم‌شکل بودن ستون‌ها
+        for col in new_df.columns:
+            if col not in df.columns:
+                # تشخیص نوع مناسب برای ستون جدید
+                sample_value = new_df[col].iloc[0] if not new_df[col].empty else None
+                if isinstance(sample_value, (int, float)) or col.startswith(('skill_', 'course_')):
+                    df[col] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
+                else:
+                    df[col] = ""  # مقدار پیش‌فرض رشته‌ای
+        
+        # ترکیب دیتافریم‌ها
+        df = pd.concat([df, new_df], ignore_index=True)
+    
+    # 6. ذخیره در فایل
     try:
         df.to_csv(file_path, index=False, encoding='utf-8-sig')
+        st.success(f"✅ پاسخ شما با موفقیت ثبت شد! (ایمیل: {user_email})")
         return True
     except Exception as e:
         st.error(f"❌ خطا در ذخیره فایل: {e}")
@@ -157,7 +177,7 @@ with st.form("survey_form"):
             placeholder="مثال: علی محمدی"
         )
         email = st.text_input(
-            "ایمیل",
+            "ایمیل *",
             placeholder="example@email.com"
         )
         work = st.selectbox( 
@@ -182,6 +202,8 @@ with st.form("survey_form"):
             "دانشگاه/مرکز علمی",
             placeholder="مثال: دانشگاه فردوسی مشهد"
         )
+    
+    st.info("📌 **توجه:** برای ویرایش پاسخ خود، از همان ایمیل استفاده کنید.")
     
     # ========== انگیزه ==========
     st.subheader("انگیزه شما از انتخاب حوزه «نظریه گراف» در مقطع تحصیلات تکمیلی")
@@ -228,7 +250,7 @@ with st.form("survey_form"):
     st.header("بخش سوم: ارزیابی تأثیر دروس گذرانده شده")
     st.caption("لطفاً تأثیر هر یک از دروس را در موارد خواسته شده با عددی بین 1 تا 5 امتیاز دهید.")
 
-    # لیست دروس (ردیف‌ها)
+    # لیست دروس (ردیف‌ها) - با دروس جدید اضافه‌شده
     courses = [
         "مباحثی ویژه در نظریه گراف",
         "نظریه جبری گراف",
@@ -252,25 +274,13 @@ with st.form("survey_form"):
         "نظریه کدگذاری",
         "پایگاه داده‌های گرافی",
         "یادگیری ماشین گرافی",
-        "رنگ‌آمیزی گراف پیشرفته"
+        "رنگ‌آمیزی گراف پیشرفته",
+        "مباحثی در جبرخطی و نظریه گراف‌ها",  # درس جدید 1
+        "مباحثی در گراف‌های جبری",           # درس جدید 2
+        "مباحثی درگروههای خطی وخودریختی های مرکزی"  # درس جدید 3
     ]
 
-    # لیست ستون‌ها (معیارهای ارزیابی)
-    criteria = [
-    "تناسب درس با اهداف رشته",
-    "تناسب سرفصل‌ها با درس",
-    "تناسب شیوه تدریس با سرفصل‌ها",
-    "توانمندی استاد در ارائه درس",
-    "بروز بودن محتوا و جدید بودن درس",
-    "مناسب بودن تعداد واحدهای آموزشی درس",
-    "مناسب بودن حجم مطالب درس",
-    "میزان علاقه‌مندی به درس",
-    "ضرورت حل تمرین یا آزمایشگاه برای این درس",
-    "نقش درس در افزایش توانمندی علمی",
-    "نقش درس در افزایش توانمندی شغلی"
-    ]
-
-    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه 1)
+    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه ۱)
     data = {}
     data["درس"] = courses
     for criterion in criteria:
@@ -333,6 +343,7 @@ with st.form("survey_form"):
     )
 
     st.divider()
+    st.caption("⚠️ فیلدهای دارای * الزامی هستند. ایمیل برای شناسایی شما استفاده می‌شود.")
     st.caption("🙏 با تشکر فراوان از زمان و توجه شما")
     
     # ========== دکمه ثبت ==========
@@ -343,6 +354,8 @@ with st.form("survey_form"):
         errors = []
         if not fullname:
             errors.append("نام و نام خانوادگی")
+        if not email:
+            errors.append("ایمیل")
         if status == "انتخاب کنید...":
             errors.append("وضعیت تحصیلی")
         
@@ -384,7 +397,6 @@ with st.form("survey_form"):
             success = save_response(response_data)
             
             if success:
-                st.success("✅ پاسخ‌های شما با موفقیت ثبت شد. سپاسگزاریم!")
                 st.balloons()
                 st.session_state.form_submitted = True
             else:
@@ -442,21 +454,19 @@ if password == "admin123":
                     st.dataframe(gender_df, use_container_width=True, hide_index=True)
         
         with col2:
-            # سال ورود (اگر موجود باشد)
-            st.subheader("سال ورود")
-            if 'entry_year' in df.columns:
-                year_counts = df['entry_year'].value_counts().sort_index()
-                if not year_counts.empty:
-                    fig_year = px.bar(
-                        x=year_counts.index,
-                        y=year_counts.values,
-                        title="توزیع سال ورود پاسخ‌دهندگان",
-                        text=year_counts.values,
-                        color=year_counts.index,
-                        labels={'x': 'سال ورود', 'y': 'تعداد'}
+            # وضعیت تحصیلی
+            st.subheader("وضعیت تحصیلی")
+            if 'status' in df.columns:
+                status_counts = df['status'].value_counts()
+                if not status_counts.empty:
+                    fig_status = px.pie(
+                        values=status_counts.values,
+                        names=status_counts.index,
+                        title="توزیع وضعیت تحصیلی",
+                        hole=0.3
                     )
-                    fig_year.update_traces(textposition='outside')
-                    st.plotly_chart(fig_year, use_container_width=True)
+                    fig_status.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(fig_status, use_container_width=True)
         
         with col3:
             # وضعیت شغلی
@@ -584,6 +594,24 @@ if password == "admin123":
                     fig_skills.update_traces(textposition='outside')
                     fig_skills.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_skills, use_container_width=True)
+                
+                # ===== نمودار جعبه‌ای =====
+                st.subheader("📦 توزیع امتیازات مهارت‌ها (Boxplot)")
+                skill_data = df[skill_cols].copy()
+                skill_data.columns = [skill_labels.get(col.replace('skill_', ''), col.replace('skill_', '')) for col in skill_data.columns]
+                
+                fig_box = px.box(
+                    skill_data,
+                    title="توزیع امتیازات مهارت‌ها (نمایش چارک‌ها)",
+                    labels={'variable': 'مهارت', 'value': 'امتیاز'}
+                )
+                fig_box.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_box, use_container_width=True)
+                
+                # ===== جدول خلاصه آماری =====
+                st.subheader("📊 خلاصه آماری مهارت‌ها")
+                summary = skill_data.describe().round(2)
+                st.dataframe(summary, use_container_width=True)
         
         st.divider()
         
@@ -688,6 +716,26 @@ if password == "admin123":
                 
                 # نمایش جدول
                 st.dataframe(criteria_df.round(3), use_container_width=True, hide_index=True)
+                
+                # ===== میانگین کلی =====
+                st.subheader("📈 روند کلی امتیازات")
+                all_scores = []
+                for col in course_cols:
+                    if col in df.columns:
+                        all_scores.extend(df[col].dropna().tolist())
+                
+                if all_scores:
+                    overall_mean = sum(all_scores) / len(all_scores)
+                    st.metric("میانگین کلی امتیازات", f"{overall_mean:.2f} از ۵")
+                    
+                    fig_hist = px.histogram(
+                        all_scores,
+                        title="توزیع کلی امتیازات",
+                        labels={'value': 'امتیاز', 'count': 'تعداد'},
+                        nbins=5,
+                        range_x=[1, 5]
+                    )
+                    st.plotly_chart(fig_hist, use_container_width=True)
         
         st.divider()
         
@@ -756,3 +804,9 @@ else:
         st.error("❌ رمز عبور اشتباه است!")
     else:
         st.info("🔑 برای مشاهده نتایج، رمز عبور را وارد کنید.")
+
+# ==========================================
+# پاورقی
+# ==========================================
+st.divider()
+st.caption("📌 این پرسشنامه توسط آزمایشگاه نظریه گراف و کاربردهای آن، دانشگاه فردوسی مشهد تهیه شده است.")
