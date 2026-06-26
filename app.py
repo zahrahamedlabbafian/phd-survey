@@ -88,13 +88,24 @@ def save_response(data):
             for key, value in data.items():
                 # اگر ستون وجود ندارد، آن را ایجاد کن
                 if key not in df.columns:
-                    df[key] = None
+                    # تشخیص نوع مناسب برای ستون جدید
+                    if key.startswith(('skill_', 'course_')):
+                        df[key] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
+                    else:
+                        df[key] = ""  # مقدار پیش‌فرض رشته‌ای
                 
                 # مقداردهی با مدیریت نوع داده
                 try:
-                    df.loc[mask, key] = value
+                    # اگر ستون عددی است و مقدار رشته است، تبدیل کن
+                    if pd.api.types.is_numeric_dtype(df[key]):
+                        try:
+                            df.loc[mask, key] = float(value) if value != "" else 1
+                        except (ValueError, TypeError):
+                            df.loc[mask, key] = 1
+                    else:
+                        df.loc[mask, key] = str(value) if value is not None else ""
                 except (TypeError, ValueError):
-                    df.loc[mask, key] = str(value)
+                    df.loc[mask, key] = 1 if pd.api.types.is_numeric_dtype(df[key]) else ""
             
             df.to_csv(file_path, index=False, encoding='utf-8-sig')
             st.info(f"🔄 پاسخ شما با موفقیت به‌روزرسانی شد! (ایمیل: {user_email})")
@@ -109,7 +120,14 @@ def save_response(data):
         # اطمینان از هم‌شکل بودن ستون‌ها
         for col in new_df.columns:
             if col not in df.columns:
-                df[col] = None
+                # تشخیص نوع مناسب برای ستون جدید
+                sample_value = new_df[col].iloc[0] if not new_df[col].empty else None
+                if isinstance(sample_value, (int, float)) or col.startswith(('skill_', 'course_')):
+                    df[col] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
+                else:
+                    df[col] = ""  # مقدار پیش‌فرض رشته‌ای
+        
+        # ترکیب دیتافریم‌ها
         df = pd.concat([df, new_df], ignore_index=True)
     
     # 6. ذخیره در فایل
@@ -259,11 +277,11 @@ with st.form("survey_form"):
         "رنگ‌آمیزی گراف پیشرفته"
     ]
 
-    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه 0)
+    # ایجاد دیتافریم با مقادیر پیش‌فرض (همه ۱)
     data = {}
     data["درس"] = courses
     for criterion in criteria:
-        data[criterion] = [0] * len(courses)
+        data[criterion] = [1] * len(courses)  # ← تغییر: مقدار پیش‌فرض ۱
 
     df_courses = pd.DataFrame(data)
 
