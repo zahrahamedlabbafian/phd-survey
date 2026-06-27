@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime
 import plotly.express as px
 import os
+from supabase import create_client, Client
+import json
 
 # ==========================================
 # لیست معیارهای ارزیابی دروس (سراسری)
@@ -44,122 +46,90 @@ st.markdown("""
 **آزمایشگاه نظریه گراف و کاربردهای آن، دانشگاه فردوسی مشهد**
 """)
 st.divider()
+# ==========================================
+# اتصال به Supabase
+# ==========================================
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Supabase Environment Variables تنظیم نشده‌اند.")
+    st.stop()
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 # ==========================================
 # توابع کمکی برای ذخیره و بارگذاری داده
 # ==========================================
 
 def save_response(data):
-    """
-    ذخیره یا به‌روزرسانی پاسخ در فایل CSV
-    اگر ایمیل قبلاً ثبت شده باشد، پاسخ قبلی به‌روزرسانی می‌شود
-    """
-    file_path = "data/responses.csv"
-    
-    # 1. ایجاد پوشه data
     try:
-        os.makedirs("data", exist_ok=True)
-    except Exception as e:
-        st.error(f"❌ خطا در ایجاد پوشه data: {e}")
-        return False
-    
-    # 2. بارگذاری داده‌های موجود
-    df = pd.DataFrame()
-    
-    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        try:
-            df = pd.read_csv(file_path, encoding='utf-8-sig')
-        except:
-            df = pd.DataFrame()
-    
-    # 3. بررسی وجود ایمیل در داده‌های قبلی
-    user_email = data.get("email", "").strip()
-    
-    if not user_email:
-        st.error("❌ لطفاً ایمیل خود را وارد کنید!")
-        return False
-    
-    # 4. اگر ایمیل وجود دارد، پاسخ قبلی را به‌روزرسانی کن
-    if not df.empty and "email" in df.columns:
-        # پیدا کردن ردیف با ایمیل مشابه
-        mask = df["email"].str.strip() == user_email
-        if mask.any():
-            # به‌روزرسانی ردیف موجود
-            for key, value in data.items():
-                # اگر ستون وجود ندارد، آن را ایجاد کن
-                if key not in df.columns:
-                    # تشخیص نوع مناسب برای ستون جدید
-                    if key.startswith(('skill_', 'course_')):
-                        df[key] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
-                    else:
-                        df[key] = ""  # مقدار پیش‌فرض رشته‌ای
-                
-                # مقداردهی با مدیریت نوع داده
-                try:
-                    # اگر ستون عددی است و مقدار رشته است، تبدیل کن
-                    if pd.api.types.is_numeric_dtype(df[key]):
-                        try:
-                            df.loc[mask, key] = float(value) if value != "" else 1
-                        except (ValueError, TypeError):
-                            df.loc[mask, key] = 1
-                    else:
-                        df.loc[mask, key] = str(value) if value is not None else ""
-                except (TypeError, ValueError):
-                    df.loc[mask, key] = 1 if pd.api.types.is_numeric_dtype(df[key]) else ""
-            
-            df.to_csv(file_path, index=False, encoding='utf-8-sig')
-            st.info(f"🔄 پاسخ شما با موفقیت به‌روزرسانی شد! (ایمیل: {user_email})")
-            return True
-    
-    # 5. اگر ایمیل جدید است، ردیف جدید اضافه کن
-    new_df = pd.DataFrame([data])
-    
-    if df.empty:
-        df = new_df
-    else:
-        # اطمینان از هم‌شکل بودن ستون‌ها
-        for col in new_df.columns:
-            if col not in df.columns:
-                # تشخیص نوع مناسب برای ستون جدید
-                sample_value = new_df[col].iloc[0] if not new_df[col].empty else None
-                if isinstance(sample_value, (int, float)) or col.startswith(('skill_', 'course_')):
-                    df[col] = 1  # مقدار پیش‌فرض ۱ برای ستون‌های عددی
-                else:
-                    df[col] = ""  # مقدار پیش‌فرض رشته‌ای
-        
-        # ترکیب دیتافریم‌ها
-        df = pd.concat([df, new_df], ignore_index=True)
-    
-    # 6. ذخیره در فایل
-    try:
-        df.to_csv(file_path, index=False, encoding='utf-8-sig')
-        st.success(f"✅ پاسخ شما با موفقیت ثبت شد! (ایمیل: {user_email})")
-        return True
-    except Exception as e:
-        st.error(f"❌ خطا در ذخیره فایل: {e}")
-        return False
 
+        email = data["email"]
+
+        old = (
+            supabase
+            .table("responses")
+            .select("id")
+            .eq("email", email)
+            .execute()
+        )
+
+        if len(old.data) > 0:
+
+            supabase.table("responses").update({
+
+                "data": json.dumps(data, ensure_ascii=False),
+                "updated_at": datetime.now().isoformat()
+
+            }).eq("email", email).execute()
+
+            st.success("✅ پاسخ شما بروزرسانی شد.")
+
+        else:
+
+            supabase.table("responses").insert({
+                "email": email,
+                "fullname": data["fullname"],
+                "data": json.dumps(data, ensure_ascii=False),
+                "created_at": datetime.now().isoformat()
+            }).execute()
+
+            st.success("✅ پاسخ شما ثبت شد.")
+
+        return True
+
+    except Exception as e:
+
+        st.error(f"خطا در خواندن اطلاعات:\n{e}")
+
+        return False
 
 def load_responses():
-    """
-    بارگذاری پاسخ‌های قبلی با مدیریت خطا
-    
-    Returns:
-        pd.DataFrame: دیتافریم شامل پاسخ‌ها
-    """
-    file_path = "data/responses.csv"
-    
-    if not os.path.exists(file_path):
-        return pd.DataFrame()
-    
+
     try:
-        if os.path.getsize(file_path) == 0:
+
+        result = supabase.table("responses").select("*").execute()
+
+        if len(result.data) == 0:
             return pd.DataFrame()
-        return pd.read_csv(file_path, encoding='utf-8-sig')
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
+
+        rows = []
+
+        for r in result.data:
+
+            item = json.loads(r["data"])
+
+            rows.append(item)
+
+        return pd.DataFrame(rows)
+
     except Exception as e:
-        st.warning(f"⚠️ خطا در بارگذاری فایل: {e}")
+
+        st.error(f"خطا در ذخیره اطلاعات:\n{e}")
+
         return pd.DataFrame()
 
 # ==========================================
